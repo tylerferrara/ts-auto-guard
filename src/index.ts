@@ -4,6 +4,7 @@ import {
   EnumDeclaration,
   ExportableNode,
   ImportDeclarationStructure,
+  ImportDeclaration,
   InterfaceDeclaration,
   Node,
   Project,
@@ -1087,15 +1088,38 @@ export function processProject(
 
       outFile.addStatements(functions.join('\n'))
 
+      // Generate map for all named imports
+      // TODO: Fix to work for EVERY type of import
+      let importsMap = new Map<string, ImportDeclaration>()
+      sourceFile.getImportDeclarations().forEach(im => {
+        im.getNamedImports().forEach(ni => {
+          importsMap.set(ni.getName(), im)
+        })
+      })
+
       outFile.addImportDeclarations(
         Array.from(dependencies.entries()).reduce(
           (structures, [importFile, imports]) => {
             if (outFile === importFile) {
               return structures
             }
-            const moduleSpecifier = outFile.getRelativePathAsModuleSpecifierTo(
+            let moduleSpecifier = outFile.getRelativePathAsModuleSpecifierTo(
               importFile
             )
+
+            if (importFile.isInNodeModules()) {
+              // Packages within node_modules should not be referenced via relative path
+              for (const im in imports) {
+                const importDeclaration = importsMap.get(im)
+                if (importDeclaration) {
+                  moduleSpecifier = importDeclaration.getModuleSpecifierValue()
+                } else {
+                  // TODO: Discover a way to prevent this
+                  console.warn("WARN THE USER")
+                }
+              }
+            }
+
             const defaultImport = imports.default
             delete imports.default
             const namedImports = Object.entries(imports).map(([alias, name]) =>
