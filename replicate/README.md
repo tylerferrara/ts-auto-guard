@@ -43,24 +43,46 @@ export function isPerson(obj: any, _argumentName?: string): obj is Person {
 **NOTE:** I've only been able to reproduce this with class definitions.
 For example, if we replace the `Timestamp class` with the `DocumentData type`, the import disapears.
 
-## Quick-n Dirty Solution
+## Solution
 
-Copy the original import when a package from `node_modules` is found.
-
-If you instead use the local version of ts-auto-guard, like so:
+Below are the steps to replicate the fix, from start to finish.
 
 ```zsh
-$ npx ts-node src/cli.ts --project ./replicate --export-all
+# Clone the project (fix is in master branch)
+git clone git@github.com:tylerferrara/ts-auto-guard.git
+cd ts-auto-guard
+# Install ts-auto-guard dependencies
+npm install
+# Install dummy project dependencies
+cd replicate
+npm install
+# Run the local build of ts-auto-guard on the dummy project
+npx ts-node ../src/cli.ts --project . --export-all
 ```
 
-We generate the correct guard file import statement:
+This will produce the following file: `ts-auto-guard/replicate/Person.guard.ts`
 
-```ts
+```zsh
+/*
+ * Generated type guards for "Person.ts".
+ * WARNING: Do not manually change this file.
+ */
 import { Timestamp } from "@google-cloud/firestore";
 import { Person } from "./Person";
 
 export function isPerson(obj: any, _argumentName?: string): obj is Person {
-    return ( ...
+    return (
+        (obj !== null &&
+            typeof obj === "object" ||
+            typeof obj === "function") &&
+        typeof obj.name === "string" &&
+        (typeof obj.age === "undefined" ||
+            typeof obj.age === "number") &&
+        Array.isArray(obj.children) &&
+        obj.children.every((e: any) =>
+            isPerson(e) as boolean
+        ) &&
+        obj.time instanceof Timestamp
+    )
+}
 ```
-
-**Git it try!**
