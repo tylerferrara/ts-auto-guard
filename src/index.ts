@@ -4,7 +4,6 @@ import {
   EnumDeclaration,
   ExportableNode,
   ImportDeclarationStructure,
-  ImportDeclaration,
   InterfaceDeclaration,
   Node,
   Project,
@@ -1088,14 +1087,16 @@ export function processProject(
 
       outFile.addStatements(functions.join('\n'))
 
-      // Generate map for all named imports
-      // TODO: Fix to work for EVERY type of import
-      let importsMap = new Map<string, ImportDeclaration>()
-      sourceFile.getImportDeclarations().forEach(im => {
-        im.getNamedImports().forEach(ni => {
-          importsMap.set(ni.getName(), im)
+      // Memoize imports within local source file
+      const importsMap = new Map<string, string>()
+      for (const impDeclaration of sourceFile.getImportDeclarations()) {
+        impDeclaration.getNamedImports().forEach(impSpecifier => {
+          importsMap.set(
+            impSpecifier.getText(),
+            impDeclaration.getModuleSpecifierValue()
+          )
         })
-      })
+      }
 
       outFile.addImportDeclarations(
         Array.from(dependencies.entries()).reduce(
@@ -1103,6 +1104,7 @@ export function processProject(
             if (outFile === importFile) {
               return structures
             }
+
             let moduleSpecifier = outFile.getRelativePathAsModuleSpecifierTo(
               importFile
             )
@@ -1112,10 +1114,7 @@ export function processProject(
               for (const im in imports) {
                 const importDeclaration = importsMap.get(im)
                 if (importDeclaration) {
-                  moduleSpecifier = importDeclaration.getModuleSpecifierValue()
-                } else {
-                  // TODO: Discover a way to prevent this
-                  console.warn("WARN THE USER")
+                  moduleSpecifier = importDeclaration
                 }
               }
             }
